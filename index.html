@@ -2,43 +2,80 @@
 <html lang="id">
 <head>
 <meta charset="UTF-8">
-<title>Quran Rhythm Runner</title>
+<title>Quran Runner – Al-Fatihah</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<link href="https://fonts.googleapis.com/css2?family=Amiri&display=swap" rel="stylesheet">
 
 <style>
-html, body {
+body {
   margin: 0;
-  padding: 0;
-  background: #000;
-  color: white;
+  background: linear-gradient(#0c0c0c, #000);
+  color: #fff;
   font-family: Arial, sans-serif;
   overflow: hidden;
-}
-
-#ui {
-  position: absolute;
-  top: 10px;
-  left: 10px;
-  z-index: 10;
 }
 
 #startScreen {
   position: absolute;
   inset: 0;
-  background: black;
+  background: #000;
   display: flex;
   flex-direction: column;
-  align-items: center;
   justify-content: center;
+  align-items: center;
+  z-index: 20;
 }
 
-button {
-  font-size: 24px;
-  padding: 12px 24px;
-  cursor: pointer;
+#ui {
+  position: absolute;
+  top: 10px;
+  width: 100%;
+  display: flex;
+  justify-content: space-around;
+  z-index: 10;
+  font-size: 14px;
+}
+
+#progressContainer {
+  position: absolute;
+  top: 50px;
+  left: 10%;
+  width: 80%;
+  height: 10px;
+  background: #333;
+  border-radius: 5px;
+}
+
+#progressBar {
+  height: 100%;
+  width: 0%;
+  background: #1e88e5;
+  border-radius: 5px;
+}
+
+#speedControl {
+  position: absolute;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
 }
 
 canvas {
   display: block;
+  margin: 0 auto;
+  background: transparent;
+}
+
+button {
+  padding: 12px 24px;
+  font-size: 16px;
+  background: #1e88e5;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
 }
 </style>
 </head>
@@ -46,137 +83,138 @@ canvas {
 <body>
 
 <div id="startScreen">
-  <h1>Quran Rhythm Runner</h1>
-  <p>Tekan A S D sesuai ayat</p>
-  <button id="startBtn">START</button>
+  <h1>Quran Runner</h1>
+  <p>Al-Fatihah</p>
+  <p>Gunakan ⬅️ ➡️</p>
+  <button id="startBtn">Mulai</button>
 </div>
 
 <div id="ui">
-  <div>Score: <span id="score">0</span></div>
-  <div>Combo: <span id="combo">0</span></div>
+  <div>Ayat: <span id="ayatInfo">1</span>/7</div>
+  <div>Potongan: <span id="pieceInfo">1</span></div>
 </div>
 
-<canvas id="game" width="480" height="720"></canvas>
+<div id="progressContainer">
+  <div id="progressBar"></div>
+</div>
+
+<div id="speedControl">
+  Speed:
+  <input type="range" min="0.5" max="2" step="0.1" value="1" id="speedSlider">
+</div>
+
+<canvas id="game" width="600" height="800"></canvas>
 
 <script>
-const canvas = document.getElementById("game");
-const ctx = canvas.getContext("2d");
-
-const scoreEl = document.getElementById("score");
-const comboEl = document.getElementById("combo");
-const startScreen = document.getElementById("startScreen");
-
-let score = 0;
-let combo = 0;
-let started = false;
-
-const lanes = [120, 240, 360];
-const hitY = 620;
-const speed = 300;
+const AUDIO_SRC = 'alfatihah.mp3';
 
 const verseTimeline = [
-  { text: "بِسْمِ اللَّهِ", startTime: 0.5, lane: 1 },
-  { text: "الْحَمْدُ لِلَّهِ", startTime: 2.0, lane: 0 },
-  { text: "رَبِّ الْعَالَمِينَ", startTime: 3.5, lane: 2 },
-  { text: "الرَّحْمَٰنِ الرَّحِيمِ", startTime: 5.5, lane: 1 },
-  { text: "مَالِكِ يَوْمِ الدِّينِ", startTime: 7.5, lane: 0 }
+  { start: 0.5, pieces: ["بِسْمِ", "اللَّهِ", "الرَّحْمَٰنِ", "الرَّحِيمِ"] },
+  { start: 4.5, pieces: ["الْحَمْدُ", "لِلَّهِ", "رَبِّ", "الْعَالَمِينَ"] },
+  { start: 9.5, pieces: ["الرَّحْمَٰنِ", "الرَّحِيمِ"] },
+  { start: 13.5, pieces: ["مَالِكِ", "يَوْمِ", "الدِّينِ"] },
+  { start: 18.0, pieces: ["إِيَّاكَ", "نَعْبُدُ", "وَإِيَّاكَ", "نَسْتَعِينُ"] },
+  { start: 24.0, pieces: ["اهْدِنَا", "الصِّرَاطَ", "الْمُسْتَقِيمَ"] },
+  { start: 29.5, pieces: ["صِرَاطَ", "الَّذِينَ", "أَنْعَمْتَ", "عَلَيْهِمْ"] }
 ];
 
-let audioCtx;
-let audio;
-let startTime = 0;
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
 
-function now() {
-  if (!audioCtx || !started) return 0;
+const lanes = [200, 300, 400];
+let playerLane = 1;
+
+let verseIndex = 0;
+let pieceIndex = 0;
+let pieceY = -50;
+
+let speedMultiplier = 1;
+const BASE_SPEED = 90;
+
+let audioCtx, buffer, source, startTime;
+
+function loadAudio() {
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  return fetch(AUDIO_SRC)
+    .then(r => r.arrayBuffer())
+    .then(b => audioCtx.decodeAudioData(b))
+    .then(buf => buffer = buf);
+}
+
+function playAudio() {
+  source = audioCtx.createBufferSource();
+  source.buffer = buffer;
+  source.connect(audioCtx.destination);
+  startTime = audioCtx.currentTime;
+  source.start();
+}
+
+function audioTime() {
   return audioCtx.currentTime - startTime;
 }
 
-function drawLaneLines() {
-  ctx.strokeStyle = "#333";
-  lanes.forEach(x => {
-    ctx.beginPath();
-    ctx.moveTo(x, 0);
-    ctx.lineTo(x, canvas.height);
-    ctx.stroke();
-  });
+function updateUI() {
+  document.getElementById('ayatInfo').textContent = verseIndex + 1;
+  document.getElementById('pieceInfo').textContent =
+    (pieceIndex + 1) + "/" + verseTimeline[verseIndex].pieces.length;
 
-  ctx.strokeStyle = "white";
-  ctx.beginPath();
-  ctx.moveTo(0, hitY);
-  ctx.lineTo(canvas.width, hitY);
-  ctx.stroke();
+  const total = verseTimeline.reduce((a,v)=>a+v.pieces.length,0);
+  const done = verseTimeline.slice(0,verseIndex)
+    .reduce((a,v)=>a+v.pieces.length,0) + pieceIndex;
+
+  document.getElementById('progressBar').style.width =
+    (done / total * 100) + "%";
 }
 
-function drawNotes() {
-  const t = now();
-  verseTimeline.forEach(note => {
-    const y = hitY - (note.startTime - t) * speed;
-    if (y < -50 || y > canvas.height + 50) return;
+function loop() {
+  ctx.clearRect(0,0,600,800);
 
-    ctx.fillStyle = "#0f0";
-    ctx.font = "24px serif";
-    ctx.textAlign = "center";
-    ctx.fillText(note.text, lanes[note.lane], y);
-  });
-}
+  ctx.fillStyle = '#1e88e5';
+  ctx.fillRect(lanes[playerLane]-30,650,60,80);
 
-function update() {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  drawLaneLines();
-  drawNotes();
-  requestAnimationFrame(update);
-}
+  if (verseIndex < verseTimeline.length) {
+    ctx.font = '36px Amiri';
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#ffffff';
 
-document.addEventListener("keydown", e => {
-  if (!started) return;
+    ctx.fillText(
+      verseTimeline[verseIndex].pieces[pieceIndex],
+      lanes[2],
+      pieceY
+    );
 
-  const laneKey = { a: 0, s: 1, d: 2 }[e.key.toLowerCase()];
-  if (laneKey === undefined) return;
+    pieceY += BASE_SPEED * speedMultiplier * 0.016;
 
-  const t = now();
+    if (pieceY > 650 && playerLane === 2) {
+      pieceIndex++;
+      pieceY = -50;
 
-  let hit = false;
-
-  verseTimeline.forEach(note => {
-    if (note.lane !== laneKey || note.hit) return;
-
-    const diff = Math.abs(note.startTime - t);
-
-    if (diff < 0.3) {
-      note.hit = true;
-      hit = true;
-      combo++;
-      score += diff < 0.15 ? 100 : 50;
+      if (pieceIndex >= verseTimeline[verseIndex].pieces.length) {
+        verseIndex++;
+        pieceIndex = 0;
+      }
+      updateUI();
     }
-  });
-
-  if (!hit) {
-    combo = 0;
-    score -= 25;
   }
 
-  scoreEl.textContent = score;
-  comboEl.textContent = combo;
+  requestAnimationFrame(loop);
+}
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'ArrowLeft') playerLane = Math.max(0, playerLane - 1);
+  if (e.key === 'ArrowRight') playerLane = Math.min(2, playerLane + 1);
 });
 
-document.getElementById("startBtn").onclick = async () => {
-  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+document.getElementById('speedSlider').oninput = e => {
+  speedMultiplier = parseFloat(e.target.value);
+};
 
-  await audioCtx.resume(); // INI KUNCI UTAMANYA
-
-  audio = new Audio("alfatihah.mp3");
-  audio.crossOrigin = "anonymous";
-
-  const source = audioCtx.createMediaElementSource(audio);
-  source.connect(audioCtx.destination);
-
-  audio.play();
-  startTime = audioCtx.currentTime;
-
-  started = true;
-  startScreen.style.display = "none";
-
-  update();
+document.getElementById('startBtn').onclick = async () => {
+  document.getElementById('startScreen').style.display = 'none';
+  await loadAudio();
+  playAudio();
+  updateUI();
+  loop();
 };
 </script>
 
