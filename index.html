@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Quran Rhythm Runner</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <style>
+    body {
+      margin: 0;
+      background: #0b0b0b;
+      color: #ffffff;
+      font-family: Arial, sans-serif;
+      text-align: center;
+      overflow: hidden;
+    }
+
+    #startScreen, #endScreen {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: radial-gradient(circle at top, #1a1a1a, #000000);
+      z-index: 10;
+    }
+
+    #gameUI {
+      position: absolute;
+      top: 10px;
+      width: 100%;
+      display: none;
+      justify-content: space-around;
+      font-size: 16px;
+      z-index: 5;
+    }
+
+    canvas {
+      display: block;
+      margin: 0 auto;
+      background: #111111;
+    }
+
+    button {
+      padding: 12px 24px;
+      font-size: 16px;
+      cursor: pointer;
+      border: none;
+      border-radius: 6px;
+      background: #1e88e5;
+      color: white;
+    }
+  </style>
+</head>
+<body>
+
+<div id="startScreen">
+  <h1>Quran Rhythm Runner</h1>
+  <p>Tekan A S D sesuai lane</p>
+  <button id="startBtn">Start</button>
+  <p style="opacity:0.7">Pastikan file alfatihah.mp3 ada di repo</p>
+</div>
+
+<div id="gameUI">
+  <div>Score: <span id="score">0</span></div>
+  <div>Combo: <span id="combo">0</span></div>
+  <div>Accuracy: <span id="accuracy">0%</span></div>
+</div>
+
+<canvas id="gameCanvas" width="600" height="800"></canvas>
+
+<div id="endScreen" style="display:none;">
+  <h2>Selesai</h2>
+  <p>Score: <span id="finalScore"></span></p>
+  <button onclick="location.reload()">Main Lagi</button>
+</div>
+
+<script>
+/* ================= CONFIG ================= */
+
+const AUDIO_SRC = 'alfatihah.mp3';
+const HIT_Y = 650;
+const SPEED = 280;
+const KEYS = ['a','s','d'];
+
+const verseTimeline = [
+  { text: 'بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ', startTime: 1.0, lane: 1 },
+  { text: 'الْحَمْدُ لِلَّهِ رَبِّ الْعَالَمِينَ', startTime: 3.2, lane: 0 },
+  { text: 'الرَّحْمَٰنِ الرَّحِيمِ', startTime: 6.0, lane: 2 },
+  { text: 'مَالِكِ يَوْمِ الدِّينِ', startTime: 9.1, lane: 1 },
+  { text: 'إِيَّاكَ نَعْبُدُ', startTime: 12.8, lane: 0 },
+  { text: 'وَإِيَّاكَ نَسْتَعِينُ', startTime: 14.8, lane: 2 }
+];
+
+/* ================= STATE ================= */
+
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+
+let audioCtx = null;
+l
